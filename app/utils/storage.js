@@ -5,11 +5,10 @@ import { updateStreak, getStreakData } from '@/lib/streakUtils'
 import { handleError, isOnline, waitForOnline } from '@/lib/errorHandler'
 import { validateJournalEntry, sanitizeText, validateRating, MAX_TEXT_LENGTH, MIN_RATING, MAX_RATING } from '@/lib/validation'
 
-const supabase = createClient()
-
 // Get current user ID
 async function getUserId() {
   try {
+    const supabase = createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
     
     if (error) {
@@ -35,6 +34,7 @@ export async function saveJournalEntry(entry, entryId = null, retryCount = 0) {
   const maxRetries = 2
   
   try {
+    const supabase = createClient()
     // Check network connection - wait a bit if just came online
     if (!isOnline()) {
       // If we just came online, wait a moment and check again
@@ -171,6 +171,7 @@ export async function saveJournalEntry(entry, entryId = null, retryCount = 0) {
 
 export async function getJournalEntries(options = {}) {
   try {
+    const supabase = createClient()
     // Check network connection
     if (!isOnline()) {
       const error = new Error('No internet connection')
@@ -242,6 +243,7 @@ export async function getJournalEntries(options = {}) {
 
 export async function getJournalEntryByDate(date) {
   try {
+    const supabase = createClient()
     const userId = await getUserId()
 
     const { data, error } = await supabase
@@ -285,6 +287,7 @@ export async function getJournalEntryByDate(date) {
 
 export async function getJournalEntriesByDate(date) {
   try {
+    const supabase = createClient()
     const userId = await getUserId()
 
     const { data, error } = await supabase
@@ -320,6 +323,7 @@ export async function getJournalEntriesByDate(date) {
 
 export async function getJournalEntryById(id) {
   try {
+    const supabase = createClient()
     const userId = await getUserId()
 
     const { data, error } = await supabase
@@ -360,6 +364,7 @@ export async function getJournalEntryById(id) {
 
 export async function deleteJournalEntry(id) {
   try {
+    const supabase = createClient()
     const userId = await getUserId()
 
     const { error } = await supabase

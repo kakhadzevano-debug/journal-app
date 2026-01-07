@@ -12,8 +12,6 @@ import {
 } from '@/lib/notifications'
 import { createClient } from '@/lib/supabase-client'
 
-const supabase = createClient()
-
 // Default notification time (9:00 AM)
 const DEFAULT_HOUR = 9
 const DEFAULT_MINUTE = 0
@@ -28,6 +26,7 @@ export function useNotifications() {
 
   // Load notification preferences from database
   useEffect(() => {
+    const supabase = createClient()
     if (!user) {
       setLoading(false)
       return
@@ -42,7 +41,8 @@ export function useNotifications() {
         // Load user preferences from database
         let preferencesData = null
         try {
-          const { data, error } = await supabase
+          const supabase = createClient()
+      const { data, error } = await supabase
             .from('user_preferences')
             .select('*')
             .eq('user_id', user.id)
@@ -183,6 +183,7 @@ export function useNotifications() {
       }
 
       // Update database
+      const supabase = createClient()
       const { data, error } = await supabase
         .from('user_preferences')
         .upsert({
@@ -291,6 +292,7 @@ export function useNotifications() {
       setLoading(true)
       
       // Update database
+      const supabase = createClient()
       const { error } = await supabase
         .from('user_preferences')
         .upsert({
