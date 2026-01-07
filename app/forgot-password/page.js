@@ -7,8 +7,6 @@ import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase-client'
 import { handleError } from '@/lib/errorHandler'
 
-const supabase = createClient()
-
 const RESET_COOLDOWN_MS = 60 * 60 * 1000 // 1 hour in milliseconds
 const RESET_COOLDOWN_KEY = 'password_reset_last_request'
 
@@ -118,6 +116,7 @@ export default function ForgotPasswordPage() {
     setLoading(true)
 
     try {
+      const supabase = createClient()
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/reset-password`,
       })

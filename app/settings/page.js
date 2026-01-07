@@ -12,8 +12,6 @@ import { useNotifications } from '../hooks/useNotifications'
 import { AuthGuard } from '../components/AuthGuard'
 import LoadingButton from '../components/LoadingButton'
 
-const supabase = createClient()
-
 function SettingsPageContent() {
   const router = useRouter()
   const { user, loading, signOut } = useAuth()

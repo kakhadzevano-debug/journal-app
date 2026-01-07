@@ -7,8 +7,6 @@ import { motion } from 'framer-motion'
 import { createClient } from '@/lib/supabase-client'
 import { handleError } from '@/lib/errorHandler'
 
-const supabase = createClient()
-
 function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -39,6 +37,7 @@ function ResetPasswordContent() {
   useEffect(() => {
     let mounted = true
     let subscription = null
+    const supabase = createClient()
 
     const checkToken = async () => {
       if (checkingTokenRef.current) return
@@ -116,6 +115,7 @@ function ResetPasswordContent() {
     setLoading(true)
 
     try {
+      const supabase = createClient()
       const { error: updateError } = await supabase.auth.updateUser({
         password: password
       })
