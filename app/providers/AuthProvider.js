@@ -5,8 +5,6 @@ import { createClient } from '@/lib/supabase-client'
 import { useRouter } from 'next/navigation'
 import { handleError } from '@/lib/errorHandler'
 
-const supabase = createClient()
-
 const AuthContext = createContext({})
 
 export const useAuth = () => {
@@ -23,6 +21,9 @@ export function AuthProvider({ children }) {
   const router = useRouter()
 
   useEffect(() => {
+    // Create client inside useEffect to avoid module-level initialization issues
+    const supabase = createClient()
+    
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
@@ -42,6 +43,7 @@ export function AuthProvider({ children }) {
 
   const signUp = async (email, password) => {
     try {
+      const supabase = createClient()
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -74,6 +76,7 @@ export function AuthProvider({ children }) {
 
   const signIn = async (email, password) => {
     try {
+      const supabase = createClient()
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -105,6 +108,7 @@ export function AuthProvider({ children }) {
   }
 
   const signOut = async () => {
+    const supabase = createClient()
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
