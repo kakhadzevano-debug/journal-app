@@ -12,6 +12,7 @@ import ConfettiAnimation from '../components/ConfettiAnimation'
 import OfflineBanner from '../components/OfflineBanner'
 import SyncPrompt from '../components/SyncPrompt'
 import LoadingButton from '../components/LoadingButton'
+import ConfirmationDialog from '../components/ConfirmationDialog'
 import { saveJournalEntry, getJournalEntryById, deleteJournalEntry, getJournalEntryByDate } from '../utils/storage'
 import { getMilestone } from '@/lib/streakUtils'
 import { validateJournalEntry, sanitizeText, validateRating } from '@/lib/validation'
@@ -38,6 +39,19 @@ function JournalPageContent() {
   const [didntLike, setDidntLike] = useState('')
   const [otherThoughts, setOtherThoughts] = useState('')
   const [tomorrowPlans, setTomorrowPlans] = useState('')
+  const [editingLabel, setEditingLabel] = useState(null) // Track which label is being edited
+  const [sectionLabels, setSectionLabels] = useState({
+    liked: "Section 1",
+    didntLike: "Section 2",
+    otherThoughts: "Section 3",
+    tomorrowPlans: "Section 4"
+  })
+  const [visibleSections, setVisibleSections] = useState({
+    liked: false,
+    didntLike: false,
+    otherThoughts: false,
+    tomorrowPlans: false
+  })
   const [showSuccess, setShowSuccess] = useState(false)
   const [editingEntryId, setEditingEntryId] = useState(null)
   const [existingEntryForDate, setExistingEntryForDate] = useState(null)
@@ -100,6 +114,13 @@ function JournalPageContent() {
           setDidntLike(draft.didntLike || '')
           setOtherThoughts(draft.otherThoughts || '')
           setTomorrowPlans(draft.tomorrowPlans || '')
+          // Keep all sections hidden - user must manually add sections to see content
+          setVisibleSections({
+            liked: false,
+            didntLike: false,
+            otherThoughts: false,
+            tomorrowPlans: false
+          })
         } else {
           draftManager.clearDraft()
           // Reset date to today when discarding draft and starting fresh
@@ -132,12 +153,47 @@ function JournalPageContent() {
           setOtherThoughts(existingEntry.otherThoughts || '')
           setTomorrowPlans(existingEntry.tomorrowPlans || '')
           setExistingEntryForDate(existingEntry)
+          // Keep all sections hidden - user must manually add sections to see content
+          setVisibleSections({
+            liked: false,
+            didntLike: false,
+            otherThoughts: false,
+            tomorrowPlans: false
+          })
           // Clear any draft when editing existing entry
           draftManager.clearDraft()
         }
       } else {
         const existing = await getJournalEntryByDate(date)
         setExistingEntryForDate(existing)
+        if (existing) {
+          // Load content and show sections that have content (same logic for all sections)
+          setRating(existing.rating || 5.0)
+          setLiked(existing.liked || '')
+          setDidntLike(existing.didntLike || '')
+          setOtherThoughts(existing.otherThoughts || '')
+          setTomorrowPlans(existing.tomorrowPlans || '')
+          // Keep all sections hidden - user must manually add sections to see content
+          setVisibleSections({
+            liked: false,
+            didntLike: false,
+            otherThoughts: false,
+            tomorrowPlans: false
+          })
+        } else {
+          // No existing entry - reset to empty state
+          setRating(5.0)
+          setLiked('')
+          setDidntLike('')
+          setOtherThoughts('')
+          setTomorrowPlans('')
+          setVisibleSections({
+            liked: false,
+            didntLike: false,
+            otherThoughts: false,
+            tomorrowPlans: false
+          })
+        }
       }
     }
     
@@ -409,6 +465,101 @@ function JournalPageContent() {
     setShowConfetti(false)
   }
 
+  const [deletingSection, setDeletingSection] = useState(null) // Track which section is being deleted
+  const [activeRecordingSection, setActiveRecordingSection] = useState(null) // Track which section is currently recording
+  
+  const handleDeleteSection = (sectionKey) => {
+    // Prevent deletion of section 1 (liked section)
+    if (sectionKey === 'liked') {
+      return
+    }
+    
+    // Count visible sections
+    const visibleCount = Object.values(visibleSections).filter(v => v).length
+    
+    // Don't allow deleting if only one section is visible
+    if (visibleCount <= 1) {
+      return
+    }
+    
+    // Check if section has content
+    let hasContent = false
+    switch(sectionKey) {
+      case 'liked':
+        hasContent = liked.trim().length > 0
+        break
+      case 'didntLike':
+        hasContent = didntLike.trim().length > 0
+        break
+      case 'otherThoughts':
+        hasContent = otherThoughts.trim().length > 0
+        break
+      case 'tomorrowPlans':
+        hasContent = tomorrowPlans.trim().length > 0
+        break
+    }
+    
+    // If section has content, show confirmation dialog
+    if (hasContent) {
+      setDeletingSection(sectionKey)
+      return
+    }
+    
+    // If no content, delete immediately
+    confirmDeleteSection(sectionKey)
+  }
+  
+  const confirmDeleteSection = (sectionKey) => {
+    // Hide the section and clear its content
+    setVisibleSections(prev => ({ ...prev, [sectionKey]: false }))
+    
+    // Clear the section's content
+    switch(sectionKey) {
+      case 'liked':
+        setLiked('')
+        break
+      case 'didntLike':
+        setDidntLike('')
+        break
+      case 'otherThoughts':
+        setOtherThoughts('')
+        break
+      case 'tomorrowPlans':
+        setTomorrowPlans('')
+        break
+    }
+    
+    setDeletingSection(null)
+  }
+
+  const handleAddSection = () => {
+    // Reveal sections in order: liked (Section 1), didntLike (Section 2), otherThoughts (Section 3), tomorrowPlans (Section 4)
+    if (!visibleSections.liked) {
+      setVisibleSections(prev => ({ ...prev, liked: true }))
+    } else if (!visibleSections.didntLike) {
+      setVisibleSections(prev => ({ ...prev, didntLike: true }))
+    } else if (!visibleSections.otherThoughts) {
+      setVisibleSections(prev => ({ ...prev, otherThoughts: true }))
+    } else if (!visibleSections.tomorrowPlans) {
+      setVisibleSections(prev => ({ ...prev, tomorrowPlans: true }))
+    }
+  }
+  
+  // Show "Add Section" button when there are fewer than 4 sections visible
+  const hasHiddenSections = Object.values(visibleSections).filter(v => v).length < 4
+
+  const handleRecordingStart = (sectionKey) => {
+    // Stop any other active recording by setting activeRecordingSection
+    // This will cause other sections' stopRecording prop to become true
+    setActiveRecordingSection(sectionKey)
+  }
+
+  const handleRecordingStop = (sectionKey) => {
+    if (activeRecordingSection === sectionKey) {
+      setActiveRecordingSection(null)
+    }
+  }
+
   const handleDelete = async () => {
     const entryToDelete = editingEntryId || existingEntryForDate?.id
     
@@ -448,6 +599,18 @@ function JournalPageContent() {
     <>
       {/* Only render OfflineBanner after mount to prevent hydration mismatch */}
       {mounted && <OfflineBanner show={!isOnline} />}
+      {deletingSection && (
+        <ConfirmationDialog
+          show={true}
+          title="Delete Section"
+          message="Are you sure you want to delete this section? All content will be lost."
+          confirmText="Delete"
+          cancelText="Cancel"
+          onConfirm={() => confirmDeleteSection(deletingSection)}
+          onCancel={() => setDeletingSection(null)}
+          confirmColor="#e63946"
+        />
+      )}
       <SyncPrompt 
         show={showSyncPrompt}
         onSync={handleSyncNow}
@@ -577,20 +740,7 @@ function JournalPageContent() {
           </div>
         </div>
 
-        {/* Main Content Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-          className="glass-card rounded-3xl"
-          style={{
-            padding: '32px 24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '32px'
-          }}
-        >
-          {/* Rating Section */}
+        {/* Rating Section */}
           <div>
             <label className="block" style={{ color: '#ffffff', marginBottom: '20px', fontSize: '20px', fontWeight: 500, letterSpacing: '0.3px' }}>
               Today's satisfaction
@@ -627,13 +777,91 @@ function JournalPageContent() {
 
           {/* Journal Entry Fields */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '36px' }}>
-            <div>
+            {visibleSections.liked && (
+            <div className="glass-card rounded-2xl p-5">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                {editingLabel === 'liked' ? (
+                  <input
+                    type="text"
+                    value={sectionLabels.liked}
+                    onChange={(e) => setSectionLabels({ ...sectionLabels, liked: e.target.value })}
+                    onBlur={() => setEditingLabel(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setEditingLabel(null)
+                      }
+                    }}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#ffffff',
+                      fontSize: '20px',
+                      fontWeight: 300,
+                      letterSpacing: '1px',
+                      outline: 'none'
+                    }}
+                  />
+                ) : (
+                  <>
+                    <label 
+                      onClick={() => setEditingLabel('liked')}
+                      style={{ 
+                        fontSize: '20px', 
+                        fontWeight: 300, 
+                        letterSpacing: '1px',
+                        background: 'linear-gradient(135deg, #ffffff 0%, #f4a261 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                        cursor: 'pointer',
+                        flex: 1
+                      }}
+                    >
+                      {sectionLabels.liked}
+                    </label>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setEditingLabel('liked')}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        padding: 0
+                      }}
+                      type="button"
+                    >
+                      ✎
+                    </motion.button>
+                    {/* Delete button hidden for section 1 (liked section) - it cannot be deleted */}
+                  </>
+                )}
+              </div>
               <VoiceTextarea
-                label="Today's strengths"
+                label={sectionLabels.liked}
                 placeholder="Share something positive that happened..."
                 value={liked}
                 onChange={setLiked}
                 enableAICleanup={enableAICleanup}
+                showLabel={false}
+                noWrapper={true}
+                sectionKey="liked"
+                onRecordingStart={handleRecordingStart}
+                onRecordingStop={handleRecordingStop}
+                stopRecording={activeRecordingSection !== null && activeRecordingSection !== 'liked'}
               />
               {liked.length > 0 && (
                 <p style={{ 
@@ -646,14 +874,117 @@ function JournalPageContent() {
                 </p>
               )}
             </div>
+            )}
 
-            <div>
+            {visibleSections.didntLike && (
+            <div className="glass-card rounded-2xl p-5">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                {editingLabel === 'didntLike' ? (
+                  <input
+                    type="text"
+                    value={sectionLabels.didntLike}
+                    onChange={(e) => setSectionLabels({ ...sectionLabels, didntLike: e.target.value })}
+                    onBlur={() => setEditingLabel(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setEditingLabel(null)
+                      }
+                    }}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#ffffff',
+                      fontSize: '20px',
+                      fontWeight: 300,
+                      letterSpacing: '1px',
+                      outline: 'none'
+                    }}
+                  />
+                ) : (
+                  <>
+                    <label 
+                      onClick={() => setEditingLabel('didntLike')}
+                      style={{ 
+                        fontSize: '20px', 
+                        fontWeight: 300, 
+                        letterSpacing: '1px',
+                        background: 'linear-gradient(135deg, #ffffff 0%, #f4a261 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                        cursor: 'pointer',
+                        flex: 1
+                      }}
+                    >
+                      {sectionLabels.didntLike}
+                    </label>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setEditingLabel('didntLike')}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        padding: 0
+                      }}
+                      type="button"
+                    >
+                      ✎
+                    </motion.button>
+                    {Object.values(visibleSections).filter(v => v).length > 1 && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleDeleteSection('didntLike')}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: 'rgba(230, 57, 70, 0.2)',
+                          border: '1px solid rgba(230, 57, 70, 0.4)',
+                          color: '#e63946',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          padding: 0,
+                          fontWeight: 'bold'
+                        }}
+                        type="button"
+                      >
+                        ×
+                      </motion.button>
+                    )}
+                  </>
+                )}
+              </div>
               <VoiceTextarea
-                label="Today's weaknesses"
+                label={sectionLabels.didntLike}
                 placeholder="Reflect on any difficulties or obstacles..."
                 value={didntLike}
                 onChange={setDidntLike}
                 enableAICleanup={enableAICleanup}
+                showLabel={false}
+                noWrapper={true}
+                sectionKey="didntLike"
+                onRecordingStart={handleRecordingStart}
+                onRecordingStop={handleRecordingStop}
+                stopRecording={activeRecordingSection !== null && activeRecordingSection !== 'didntLike'}
               />
               {didntLike.length > 0 && (
                 <p style={{ 
@@ -666,14 +997,117 @@ function JournalPageContent() {
                 </p>
               )}
             </div>
+            )}
 
-            <div>
+            {visibleSections.otherThoughts && (
+            <div className="glass-card rounded-2xl p-5">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                {editingLabel === 'otherThoughts' ? (
+                  <input
+                    type="text"
+                    value={sectionLabels.otherThoughts}
+                    onChange={(e) => setSectionLabels({ ...sectionLabels, otherThoughts: e.target.value })}
+                    onBlur={() => setEditingLabel(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setEditingLabel(null)
+                      }
+                    }}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#ffffff',
+                      fontSize: '20px',
+                      fontWeight: 300,
+                      letterSpacing: '1px',
+                      outline: 'none'
+                    }}
+                  />
+                ) : (
+                  <>
+                    <label 
+                      onClick={() => setEditingLabel('otherThoughts')}
+                      style={{ 
+                        fontSize: '20px', 
+                        fontWeight: 300, 
+                        letterSpacing: '1px',
+                        background: 'linear-gradient(135deg, #ffffff 0%, #f4a261 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                        cursor: 'pointer',
+                        flex: 1
+                      }}
+                    >
+                      {sectionLabels.otherThoughts}
+                    </label>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setEditingLabel('otherThoughts')}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        padding: 0
+                      }}
+                      type="button"
+                    >
+                      ✎
+                    </motion.button>
+                    {Object.values(visibleSections).filter(v => v).length > 1 && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleDeleteSection('otherThoughts')}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: 'rgba(230, 57, 70, 0.2)',
+                          border: '1px solid rgba(230, 57, 70, 0.4)',
+                          color: '#e63946',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          padding: 0,
+                          fontWeight: 'bold'
+                        }}
+                        type="button"
+                      >
+                        ×
+                      </motion.button>
+                    )}
+                  </>
+                )}
+              </div>
               <VoiceTextarea
-                label="Today's events and thoughts"
+                label={sectionLabels.otherThoughts}
                 placeholder="Any other thoughts you'd like to capture..."
                 value={otherThoughts}
                 onChange={setOtherThoughts}
                 enableAICleanup={enableAICleanup}
+                showLabel={false}
+                noWrapper={true}
+                sectionKey="otherThoughts"
+                onRecordingStart={handleRecordingStart}
+                onRecordingStop={handleRecordingStop}
+                stopRecording={activeRecordingSection !== null && activeRecordingSection !== 'otherThoughts'}
               />
               {otherThoughts.length > 0 && (
                 <p style={{ 
@@ -686,14 +1120,117 @@ function JournalPageContent() {
                 </p>
               )}
             </div>
+            )}
 
-            <div>
+            {visibleSections.tomorrowPlans && (
+            <div className="glass-card rounded-2xl p-5">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                {editingLabel === 'tomorrowPlans' ? (
+                  <input
+                    type="text"
+                    value={sectionLabels.tomorrowPlans}
+                    onChange={(e) => setSectionLabels({ ...sectionLabels, tomorrowPlans: e.target.value })}
+                    onBlur={() => setEditingLabel(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        setEditingLabel(null)
+                      }
+                    }}
+                    autoFocus
+                    style={{
+                      flex: 1,
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderRadius: '8px',
+                      padding: '8px 12px',
+                      color: '#ffffff',
+                      fontSize: '20px',
+                      fontWeight: 300,
+                      letterSpacing: '1px',
+                      outline: 'none'
+                    }}
+                  />
+                ) : (
+                  <>
+                    <label 
+                      onClick={() => setEditingLabel('tomorrowPlans')}
+                      style={{ 
+                        fontSize: '20px', 
+                        fontWeight: 300, 
+                        letterSpacing: '1px',
+                        background: 'linear-gradient(135deg, #ffffff 0%, #f4a261 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
+                        cursor: 'pointer',
+                        flex: 1
+                      }}
+                    >
+                      {sectionLabels.tomorrowPlans}
+                    </label>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => setEditingLabel('tomorrowPlans')}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '50%',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        color: '#ffffff',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        padding: 0
+                      }}
+                      type="button"
+                    >
+                      ✎
+                    </motion.button>
+                    {Object.values(visibleSections).filter(v => v).length > 1 && (
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => handleDeleteSection('tomorrowPlans')}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '50%',
+                          background: 'rgba(230, 57, 70, 0.2)',
+                          border: '1px solid rgba(230, 57, 70, 0.4)',
+                          color: '#e63946',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          padding: 0,
+                          fontWeight: 'bold'
+                        }}
+                        type="button"
+                      >
+                        ×
+                      </motion.button>
+                    )}
+                  </>
+                )}
+              </div>
               <VoiceTextarea
-                label="Tomorrow's intentions"
+                label={sectionLabels.tomorrowPlans}
                 placeholder="What are you looking forward to or planning for tomorrow?"
                 value={tomorrowPlans}
                 onChange={setTomorrowPlans}
                 enableAICleanup={enableAICleanup}
+                showLabel={false}
+                noWrapper={true}
+                sectionKey="tomorrowPlans"
+                onRecordingStart={handleRecordingStart}
+                onRecordingStop={handleRecordingStop}
+                stopRecording={activeRecordingSection !== null && activeRecordingSection !== 'tomorrowPlans'}
               />
               {tomorrowPlans.length > 0 && (
                 <p style={{ 
@@ -706,9 +1243,34 @@ function JournalPageContent() {
                 </p>
               )}
             </div>
+            )}
+            
+            {/* Add Section Button */}
+            {hasHiddenSections && (
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleAddSection}
+                className="glass-card rounded-2xl p-4 w-full flex items-center justify-center gap-2"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px dashed rgba(255, 255, 255, 0.2)',
+                  color: '#ffffff',
+                  fontSize: '16px',
+                  fontWeight: 400,
+                  letterSpacing: '0.3px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                type="button"
+              >
+                <span style={{ fontSize: '20px' }}>+</span>
+                <span>Add Section</span>
+              </motion.button>
+            )}
           </div>
 
-          {/* Bottom Buttons */}
+        {/* Bottom Buttons */}
           <div style={{ paddingTop: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* Show delete button if editing, or if there's existing content to clear */}
             {(editingEntryId || existingEntryForDate || liked || didntLike || otherThoughts || tomorrowPlans) && (
@@ -810,7 +1372,6 @@ function JournalPageContent() {
               {saving ? 'Saving...' : 'Save & Finish'}
             </motion.button>
           </div>
-        </motion.div>
       </motion.div>
     </main>
     </>
