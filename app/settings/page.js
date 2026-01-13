@@ -44,8 +44,7 @@ function SettingsPageContent() {
   const [journalCount, setJournalCount] = useState(0)
   const [loadingAccountInfo, setLoadingAccountInfo] = useState(true)
   const [upgrading, setUpgrading] = useState(false)
-  const [upgrading, setUpgrading] = useState(false)
-  
+
   // Sync local state with hook state
   useEffect(() => {
     setLocalHour(hour)
