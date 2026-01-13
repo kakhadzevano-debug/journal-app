@@ -19,6 +19,7 @@ import { validateJournalEntry, sanitizeText, validateRating } from '@/lib/valida
 import { useOnlineStatus } from '@/lib/hooks/useOnlineStatus'
 import { draftManager } from '@/lib/draftManager'
 import { AuthGuard } from '../components/AuthGuard'
+import AccountLimitBanner from '../components/AccountLimitBanner'
 
 // Helper function to get today's date in local timezone (YYYY-MM-DD format)
 function getTodayLocalDate() {
@@ -378,6 +379,12 @@ function JournalPageContent() {
         setSaveError({
           message: 'Connection lost. Your journal has been saved as a draft and will sync when you reconnect.',
           canRetry: true
+        })
+      } else if (error.code === 'LIMIT_REACHED') {
+        // Handle journal limit reached
+        setSaveError({
+          message: error.message || 'Monthly journal limit reached. Upgrade to Pro for unlimited journals.',
+          canRetry: false
         })
       } else {
         setSaveError({
@@ -774,6 +781,9 @@ function JournalPageContent() {
               </div>
             </div>
           </div>
+
+          {/* Account Limit Banner */}
+          <AccountLimitBanner />
 
           {/* Journal Entry Fields */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '36px' }}>

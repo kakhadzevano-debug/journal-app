@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase-client'
 import { updateStreak, getStreakData } from '@/lib/streakUtils'
 import { handleError, isOnline, waitForOnline } from '@/lib/errorHandler'
 import { validateJournalEntry, sanitizeText, validateRating, MAX_TEXT_LENGTH, MIN_RATING, MAX_RATING } from '@/lib/validation'
+import { canCreateJournal } from '@/lib/accountUtils'
 
 // Get current user ID
 async function getUserId() {
@@ -54,6 +55,34 @@ export async function saveJournalEntry(entry, entryId = null, retryCount = 0) {
 
     const userId = await getUserId()
     
+    // Check if we're updating an existing entry (for limit checking)
+    let isNewEntry = false
+    if (entryId || entry.id) {
+      const { data: existingCheck, error: checkError } = await supabase
+        .from('journal_entries')
+        .select('id')
+        .eq('id', entryId || entry.id)
+        .eq('user_id', userId)
+        .single()
+      
+      isNewEntry = !existingCheck && (!checkError || checkError.code === 'PGRST116')
+    } else {
+      isNewEntry = true
+    }
+    
+    // Check journal creation limits (only for new entries)
+    if (isNewEntry) {
+      const limitCheck = await canCreateJournal(true)
+      if (!limitCheck.canCreate) {
+        const limitError = new Error(limitCheck.message || 'Monthly journal limit reached')
+        limitError.code = 'LIMIT_REACHED'
+        limitError.accountType = limitCheck.accountType
+        limitError.currentCount = limitCheck.currentCount
+        limitError.limit = limitCheck.limit
+        throw limitError
+      }
+    }
+    
     // Server-side validation
     const validation = validateJournalEntry(entry)
     if (!validation.valid) {
@@ -84,7 +113,7 @@ export async function saveJournalEntry(entry, entryId = null, retryCount = 0) {
       sanitizedEntry.id = entryId
     }
 
-    // Check if we're updating an existing entry
+    // Check if we're updating an existing entry (verify with actual database check)
     const { data: existingEntry, error: checkError } = await supabase
       .from('journal_entries')
       .select('*')
@@ -96,7 +125,8 @@ export async function saveJournalEntry(entry, entryId = null, retryCount = 0) {
       throw checkError
     }
 
-    const isNewEntry = !existingEntry
+    // Update isNewEntry based on actual database check
+    isNewEntry = !existingEntry
 
     // If updating an existing entry, preserve the original createdAt
     if (existingEntry && existingEntry.created_at) {
@@ -364,25 +394,41 @@ export async function getJournalEntryById(id) {
 
 export async function deleteJournalEntry(id) {
   try {
+    if (!id) {
+      throw new Error('Entry ID is required for deletion')
+    }
+
     const supabase = createClient()
     const userId = await getUserId()
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('journal_entries')
       .delete()
       .eq('id', id)
       .eq('user_id', userId)
+      .select()
 
     if (error) {
       throw error
     }
 
+    // Check if anything was actually deleted
+    if (!data || data.length === 0) {
+      throw new Error('Entry not found or you do not have permission to delete it')
+    }
+
     return true
   } catch (error) {
+    const handled = handleError(error, 'delete')
+    
     if (process.env.NODE_ENV === 'development') {
       console.error('Error deleting journal entry:', error)
     }
-    return false
+    
+    // Throw error instead of returning false so it can be caught properly
+    const userError = new Error(handled.message)
+    userError.canRetry = handled.canRetry
+    throw userError
   }
 }
 

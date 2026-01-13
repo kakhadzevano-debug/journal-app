@@ -11,6 +11,7 @@ import StreakToast from '../components/StreakToast'
 import { useNotifications } from '../hooks/useNotifications'
 import { AuthGuard } from '../components/AuthGuard'
 import LoadingButton from '../components/LoadingButton'
+import { getAccountType, getCurrentMonthJournalCount } from '@/lib/accountUtils'
 
 function SettingsPageContent() {
   const router = useRouter()
@@ -39,12 +40,32 @@ function SettingsPageContent() {
   const [localHour, setLocalHour] = useState(hour)
   const [localMinute, setLocalMinute] = useState(minute)
   const [savingTime, setSavingTime] = useState(false)
+  const [accountType, setAccountType] = useState('free')
+  const [journalCount, setJournalCount] = useState(0)
+  const [loadingAccountInfo, setLoadingAccountInfo] = useState(true)
   
   // Sync local state with hook state
   useEffect(() => {
     setLocalHour(hour)
     setLocalMinute(minute)
   }, [hour, minute])
+
+  // Load account information
+  useEffect(() => {
+    const loadAccountInfo = async () => {
+      try {
+        const { accountType: type } = await getAccountType()
+        const count = await getCurrentMonthJournalCount()
+        setAccountType(type)
+        setJournalCount(count)
+      } catch (error) {
+        console.error('Error loading account info:', error)
+      } finally {
+        setLoadingAccountInfo(false)
+      }
+    }
+    loadAccountInfo()
+  }, [])
   
   // Check if time has been changed
   const hasTimeChanged = localHour !== hour || localMinute !== minute
@@ -513,6 +534,39 @@ function SettingsPageContent() {
                         : 'Not available'}
                     </div>
                   </div>
+                  <div>
+                    <label style={{
+                      color: '#a8a8b3',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      marginBottom: '4px',
+                      display: 'block'
+                    }}>
+                      Account Type
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{
+                        color: accountType === 'pro' ? '#f4a261' : '#ffffff',
+                        fontSize: '16px',
+                        fontWeight: 600,
+                        letterSpacing: '0.3px',
+                        textTransform: 'capitalize'
+                      }}>
+                        {loadingAccountInfo ? 'Loading...' : accountType === 'pro' ? '⭐ Pro' : 'Free'}
+                      </div>
+                      {accountType === 'free' && !loadingAccountInfo && (
+                        <div style={{
+                          color: '#a8a8b3',
+                          fontSize: '12px',
+                          letterSpacing: '0.3px'
+                        }}>
+                          ({journalCount}/16 this month)
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -575,36 +629,32 @@ function SettingsPageContent() {
             }}></div>
 
             {/* Notification Settings Section */}
-            {isSupported && (
-              <div>
-                <h2 style={{ 
-                  color: '#ffffff', 
-                  fontSize: '24px', 
-                  fontWeight: 600, 
-                  marginBottom: '12px',
-                  letterSpacing: '0.3px'
-                }}>
-                  Daily Reminders
-                </h2>
-                <p style={{ 
-                  color: '#a8a8b3', 
-                  fontSize: '14px', 
-                  marginBottom: '20px',
-                  lineHeight: '1.6'
-                }}>
-                  Get daily notifications to remind you to journal and keep your streak going.
-                </p>
+            <div>
+              <h2 style={{ 
+                color: '#ffffff', 
+                fontSize: '24px', 
+                fontWeight: 600, 
+                marginBottom: '12px',
+                letterSpacing: '0.3px'
+              }}>
+                Daily Reminders
+              </h2>
+              <p style={{ 
+                color: '#a8a8b3', 
+                fontSize: '14px', 
+                marginBottom: '20px',
+                lineHeight: '1.6'
+              }}>
+                Get daily notifications to remind you to journal and keep your streak going.
+              </p>
 
-                {/* Permission Status */}
+              {/* Show unsupported message if notifications aren't supported */}
+              {!isSupported && (
                 <div style={{
-                  background: permission === 'granted' 
-                    ? 'rgba(76, 175, 80, 0.1)' 
-                    : 'rgba(255, 193, 7, 0.1)',
-                  border: `1px solid ${permission === 'granted' 
-                    ? 'rgba(76, 175, 80, 0.3)' 
-                    : 'rgba(255, 193, 7, 0.3)'}`,
+                  background: 'rgba(255, 193, 7, 0.1)',
+                  border: '1px solid rgba(255, 193, 7, 0.3)',
                   borderRadius: '12px',
-                  padding: '12px',
+                  padding: '16px',
                   marginBottom: '20px'
                 }}>
                   <p style={{ 
@@ -613,51 +663,77 @@ function SettingsPageContent() {
                     margin: 0,
                     textAlign: 'center'
                   }}>
-                    {permissionMessage}
+                    ⚠️ Notifications are not supported in this browser. Please use a modern browser like Chrome, Firefox, or Safari to enable daily reminders.
                   </p>
                 </div>
+              )}
 
-                {/* Request Permission Button */}
-                {permission !== 'granted' && (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={async () => {
-                      try {
-                        await requestPermission()
-                        setToast({
-                          show: true,
-                          message: '✅ Notification permission granted!',
-                          type: 'success'
-                        })
-                      } catch (error) {
-                        setToast({
-                          show: true,
-                          message: error.message || 'Failed to enable notifications',
-                          type: 'error'
-                        })
-                      }
-                    }}
-                    disabled={notificationsLoading}
-                    className="w-full text-white rounded-xl"
-                    style={{
-                      height: '48px',
-                      background: 'linear-gradient(135deg, #f4a261 0%, #e76f51 100%)',
-                      fontSize: '16px',
-                      fontWeight: 500,
-                      letterSpacing: '0.3px',
-                      border: 'none',
-                      cursor: notificationsLoading ? 'not-allowed' : 'pointer',
-                      opacity: notificationsLoading ? 0.7 : 1,
+                {/* Only show notification controls if notifications are supported */}
+                {isSupported && (
+                  <>
+                    {/* Permission Status */}
+                    <div style={{
+                      background: permission === 'granted' 
+                        ? 'rgba(76, 175, 80, 0.1)' 
+                        : 'rgba(255, 193, 7, 0.1)',
+                      border: `1px solid ${permission === 'granted' 
+                        ? 'rgba(76, 175, 80, 0.3)' 
+                        : 'rgba(255, 193, 7, 0.3)'}`,
+                      borderRadius: '12px',
+                      padding: '12px',
                       marginBottom: '20px'
-                    }}
-                  >
-                    {notificationsLoading ? 'Requesting...' : 'Enable Notifications'}
-                  </motion.button>
-                )}
+                    }}>
+                      <p style={{ 
+                        color: '#ffffff', 
+                        fontSize: '14px',
+                        margin: 0,
+                        textAlign: 'center'
+                      }}>
+                        {permissionMessage}
+                      </p>
+                    </div>
 
-                {/* Toggle Notifications */}
-                {permission === 'granted' && (
+                    {/* Request Permission Button */}
+                    {permission !== 'granted' && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={async () => {
+                          try {
+                            await requestPermission()
+                            setToast({
+                              show: true,
+                              message: '✅ Notification permission granted!',
+                              type: 'success'
+                            })
+                          } catch (error) {
+                            setToast({
+                              show: true,
+                              message: error.message || 'Failed to enable notifications',
+                              type: 'error'
+                            })
+                          }
+                        }}
+                        disabled={notificationsLoading || !isSupported}
+                        className="w-full text-white rounded-xl"
+                        style={{
+                          height: '48px',
+                          background: 'linear-gradient(135deg, #f4a261 0%, #e76f51 100%)',
+                          fontSize: '16px',
+                          fontWeight: 500,
+                          letterSpacing: '0.3px',
+                          border: 'none',
+                          cursor: (notificationsLoading || !isSupported) ? 'not-allowed' : 'pointer',
+                          opacity: (notificationsLoading || !isSupported) ? 0.7 : 1,
+                          marginBottom: '20px'
+                        }}
+                      >
+                        {notificationsLoading ? 'Requesting...' : 'Enable Notifications'}
+                      </motion.button>
+                    )}
+
+                    {/* Toggle Notifications */}
+                    {permission === 'granted' && (
                   <>
                     <div style={{
                       display: 'flex',
@@ -912,9 +988,10 @@ function SettingsPageContent() {
                       </div>
                     )}
                   </>
-                )}
+                    )}
+                </>
+              )}
               </div>
-            )}
 
             {/* Divider */}
             <div style={{ 
