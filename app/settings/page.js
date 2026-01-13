@@ -11,7 +11,7 @@ import StreakToast from '../components/StreakToast'
 import { useNotifications } from '../hooks/useNotifications'
 import { AuthGuard } from '../components/AuthGuard'
 import LoadingButton from '../components/LoadingButton'
-import { getAccountType, getCurrentMonthJournalCount } from '@/lib/accountUtils'
+import { getAccountType, getCurrentMonthJournalCount, upgradeToPro } from '@/lib/accountUtils'
 
 function SettingsPageContent() {
   const router = useRouter()
@@ -43,6 +43,8 @@ function SettingsPageContent() {
   const [accountType, setAccountType] = useState('free')
   const [journalCount, setJournalCount] = useState(0)
   const [loadingAccountInfo, setLoadingAccountInfo] = useState(true)
+  const [upgrading, setUpgrading] = useState(false)
+  const [upgrading, setUpgrading] = useState(false)
   
   // Sync local state with hook state
   useEffect(() => {
@@ -66,6 +68,52 @@ function SettingsPageContent() {
     }
     loadAccountInfo()
   }, [])
+
+  // Handle upgrade to Pro
+  const handleUpgradeToPro = async () => {
+    if (accountType === 'pro') {
+      setToast({
+        show: true,
+        message: 'You already have a Pro account!',
+        type: 'success'
+      })
+      return
+    }
+
+    // For now, just upgrade directly (later you can add payment processing)
+    if (window.confirm('Upgrade to Pro? This will give you unlimited journals. (Payment integration coming soon)')) {
+      setUpgrading(true)
+      try {
+        const success = await upgradeToPro()
+        if (success) {
+          setAccountType('pro')
+          setToast({
+            show: true,
+            message: '🎉 Successfully upgraded to Pro! You now have unlimited journals.',
+            type: 'success'
+          })
+          // Reload account info to get updated count
+          const count = await getCurrentMonthJournalCount()
+          setJournalCount(count)
+        } else {
+          setToast({
+            show: true,
+            message: 'Failed to upgrade. Please try again.',
+            type: 'error'
+          })
+        }
+      } catch (error) {
+        console.error('Error upgrading to Pro:', error)
+        setToast({
+          show: true,
+          message: 'Failed to upgrade. Please try again.',
+          type: 'error'
+        })
+      } finally {
+        setUpgrading(false)
+      }
+    }
+  }
   
   // Check if time has been changed
   const hasTimeChanged = localHour !== hour || localMinute !== minute
@@ -546,23 +594,82 @@ function SettingsPageContent() {
                     }}>
                       Account Type
                     </label>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{
-                        color: accountType === 'pro' ? '#f4a261' : '#ffffff',
-                        fontSize: '16px',
-                        fontWeight: 600,
-                        letterSpacing: '0.3px',
-                        textTransform: 'capitalize'
-                      }}>
-                        {loadingAccountInfo ? 'Loading...' : accountType === 'pro' ? '⭐ Pro' : 'Free'}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{
+                          color: accountType === 'pro' ? '#f4a261' : '#ffffff',
+                          fontSize: '16px',
+                          fontWeight: 600,
+                          letterSpacing: '0.3px',
+                          textTransform: 'capitalize'
+                        }}>
+                          {loadingAccountInfo ? 'Loading...' : accountType === 'pro' ? '⭐ Pro' : 'Free'}
+                        </div>
+                        {accountType === 'free' && !loadingAccountInfo && (
+                          <div style={{
+                            color: '#a8a8b3',
+                            fontSize: '12px',
+                            letterSpacing: '0.3px'
+                          }}>
+                            ({journalCount}/16 this month)
+                          </div>
+                        )}
                       </div>
                       {accountType === 'free' && !loadingAccountInfo && (
+                        <motion.button
+                          whileHover={{ scale: 1.02 }}
+                          whileTap={{ scale: 0.98 }}
+                          onClick={handleUpgradeToPro}
+                          disabled={upgrading}
+                          style={{
+                            padding: '12px 24px',
+                            borderRadius: '12px',
+                            border: 'none',
+                            background: 'linear-gradient(135deg, #f4a261 0%, #e76f51 100%)',
+                            color: '#ffffff',
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            letterSpacing: '0.3px',
+                            cursor: upgrading ? 'not-allowed' : 'pointer',
+                            opacity: upgrading ? 0.7 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '8px',
+                            width: '100%',
+                            maxWidth: '300px'
+                          }}
+                        >
+                          {upgrading ? (
+                            <>
+                              <div style={{
+                                width: '16px',
+                                height: '16px',
+                                border: '2px solid rgba(255, 255, 255, 0.3)',
+                                borderTop: '2px solid #ffffff',
+                                borderRadius: '50%',
+                                animation: 'spin 1s linear infinite'
+                              }} />
+                              Upgrading...
+                            </>
+                          ) : (
+                            <>
+                              ⭐ Upgrade to Pro
+                            </>
+                          )}
+                        </motion.button>
+                      )}
+                      {accountType === 'pro' && (
                         <div style={{
-                          color: '#a8a8b3',
-                          fontSize: '12px',
+                          padding: '12px 16px',
+                          borderRadius: '12px',
+                          background: 'rgba(244, 162, 97, 0.1)',
+                          border: '1px solid rgba(244, 162, 97, 0.3)',
+                          color: '#f4a261',
+                          fontSize: '13px',
                           letterSpacing: '0.3px'
                         }}>
-                          ({journalCount}/16 this month)
+                          ✨ You have unlimited journals!
                         </div>
                       )}
                     </div>

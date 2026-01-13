@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import { getAccountType, getCurrentMonthJournalCount, canCreateJournal } from '@/lib/accountUtils'
 
 const FREE_MONTHLY_LIMIT = 16
 
 export default function AccountLimitBanner() {
+  const router = useRouter()
   const [accountInfo, setAccountInfo] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -88,13 +90,40 @@ export default function AccountLimitBanner() {
           <div style={{ 
             fontSize: '12px', 
             color: 'rgba(255, 255, 255, 0.8)',
-            lineHeight: 1.4
+            lineHeight: 1.4,
+            marginBottom: isAtLimit ? '12px' : '0'
           }}>
             {isAtLimit 
               ? `You've used all ${FREE_MONTHLY_LIMIT} free journals this month. Upgrade to Pro for unlimited journals.`
               : `You've created ${accountInfo.currentCount} of ${FREE_MONTHLY_LIMIT} free journals this month.`
             }
           </div>
+          {isAtLimit && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => router.push('/settings')}
+              style={{
+                marginTop: '12px',
+                padding: '10px 20px',
+                borderRadius: '10px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #f4a261 0%, #e76f51 100%)',
+                color: '#ffffff',
+                fontSize: '13px',
+                fontWeight: 600,
+                letterSpacing: '0.3px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                width: '100%',
+                justifyContent: 'center'
+              }}
+            >
+              ⭐ Upgrade to Pro
+            </motion.button>
+          )}
         </div>
       </div>
     </motion.div>
